@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RecordingManager:
-    def __init__(self, rtsp_url, duration=180, irods_path="/zone/home/project/recordings"):
+    def __init__(self, rtsp_url, duration=180, irods_path="/set/home/Gait_Team/AI@WZC/VideoUpload"):
         self.rtsp_url = rtsp_url
         self.duration = duration
         self.irods_path = irods_path

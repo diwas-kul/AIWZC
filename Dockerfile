@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg2 \
     lsb-release \
-    && rm -rf /var/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Install iCommands
 RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - \
@@ -17,6 +17,11 @@ RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - 
     && apt-get install -y irods-icommands \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a user with the same UID as your host user
+RUN useradd -u 1000 -m irods_user \
+    && mkdir -p /recordings \
+    && chown -R irods_user:irods_user /recordings
+
 # Copy requirements file
 COPY requirements.txt /app/
 RUN pip install -r /app/requirements.txt
@@ -24,10 +29,11 @@ RUN pip install -r /app/requirements.txt
 # Copy the Python scripts
 COPY rtsp_recorder.py api_server.py /app/
 
-# Create necessary directories
-RUN mkdir -p /recordings /root/.irods
-
 WORKDIR /app
+RUN chown -R irods_user:irods_user /app
+
+# Switch to the irods user
+USER irods_user
 
 # Start the API server
 CMD ["python", "api_server.py"]
