@@ -4,6 +4,9 @@ FROM python:3.8-slim
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     wget \
     gnupg2 \
     lsb-release \
@@ -17,23 +20,27 @@ RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - 
     && apt-get install -y irods-icommands \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a user with the same UID as your host user
+# Create a user with the same UID as your host user (default 1000)
 RUN useradd -u 1000 -m irods_user \
     && mkdir -p /recordings \
     && chown -R irods_user:irods_user /recordings
 
-# Copy requirements file
-COPY requirements.txt /app/
-RUN pip install -r /app/requirements.txt
-
-# Copy the Python scripts
-COPY rtsp_recorder.py api_server.py /app/
-
+# Set up application directory
 WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application files
+COPY api_server.py rtsp_recorder.py ./
 RUN chown -R irods_user:irods_user /app
 
-# Switch to the irods user
+# Switch to non-root user
 USER irods_user
 
-# Start the API server
-CMD ["python", "api_server.py"]
+# Expose the Flask port
+EXPOSE 5000
+
+# Start the API server using gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "300", "api_server:app"]
