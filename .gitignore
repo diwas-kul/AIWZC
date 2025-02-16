@@ -1,0 +1,45 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Model weights and binary files
+*.bin
+*.pth
+*.weights
+
+# Video files
+*.mp4
+*.avi
+
+# Output directories - keep directory structure but ignore contents
+recordings/*
+!recordings/.gitkeep
+Inference/motionbert/results_test_pose/*
+!Inference/motionbert/results_test_pose/.gitkeep
+Inference/exercise_outcomes/*
+!Inference/exercise_outcomes/.gitkeep
+
+# Compiled files and caches
+*.so
+*.dylib
+*.dll
+.cache
+
+# Environment and IDE
+.env
+.venv
+env/
+venv/
+.idea/
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Specific folders from your project
+**/models/__pycache__/
+**/SPPE/__pycache__/
+**/utils/__pycache__/
+**/yolo/__pycache__/

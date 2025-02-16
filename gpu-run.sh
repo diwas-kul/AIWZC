@@ -50,6 +50,7 @@ run_container() {
     
     echo "Detected $CPU_COUNT CPU cores"
     docker run -d \
+        --gpus all \
         --name $CONTAINER_NAME \
         -p ${HOST_PORT}:${CONTAINER_PORT} \
         -v $HOME/.irods:/home/ml_user/.irods \

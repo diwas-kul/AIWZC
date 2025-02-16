@@ -1,0 +1,60 @@
+FROM python:3.8-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    wget \
+    gnupg2 \
+    lsb-release \
+    ffmpeg \
+    python3-opencv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install iCommands
+RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - \
+    && echo "deb [arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" \
+    | tee /etc/apt/sources.list.d/renci-irods.list \
+    && apt-get update \
+    && apt-get install -y irods-icommands \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a user with the same UID as your host user (default 1000)
+RUN useradd -u 1000 -m irods_user \
+    && mkdir -p /recordings \
+    && chown -R irods_user:irods_user /recordings
+
+# Set up application directory
+WORKDIR /app
+
+# Copy only the necessary files (not Inference)
+COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir \
+        torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+        psutil \
+        tqdm \
+        pyyaml \
+        scikit-learn \
+        scipy \
+        imageio \
+        opencv-python-headless \
+        matplotlib pandas smplx h5py easydict ipdb visdom
+
+# Create mount point for Inference
+RUN mkdir -p /app/Inference && chown -R irods_user:irods_user /app
+
+# Switch to non-root user
+USER irods_user
+
+# Expose the Flask port
+EXPOSE 5000
+
+# Start the API server using gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "300", "api_server:app"]

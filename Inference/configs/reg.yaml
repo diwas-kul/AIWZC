@@ -1,0 +1,26 @@
+# Traning 
+epochs: 60
+checkpoint_frequency: 30
+batch_size: 16
+dropout: 0.0
+learning_rate: 0.0002
+weight_decay: 0.01
+lr_decay: 0.99
+
+# Model
+maxlen: 243
+dim_feat: 256
+mlp_ratio: 4
+depth: 5
+dim_rep: 512
+num_heads: 8
+att_fuse: True
+
+# Data
+clip_len: 243
+data_stride: 81
+rootrel: False
+sample_stride: 1
+num_joints: 17
+window_len: 243
+step_size: 121
