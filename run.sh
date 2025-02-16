@@ -30,6 +30,17 @@ build_image() {
     fi
 }
 
+# Add this function to check GPU availability
+check_gpu() {
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+        echo "GPU detected"
+        return 0
+    else
+        echo "No GPU detected, running in CPU mode"
+        return 1
+    fi
+}
+
 # Function to run container
 run_container() {
     echo "Checking for existing container..."
@@ -48,15 +59,29 @@ run_container() {
     # Set proper permissions
     chmod 700 "$RECORDINGS_DIR"
     
-    echo "Detected $CPU_COUNT CPU cores"
-    docker run -d \
-        --name $CONTAINER_NAME \
-        -p ${HOST_PORT}:${CONTAINER_PORT} \
-        -v $HOME/.irods:/home/ml_user/.irods \
-        -v "$RECORDINGS_DIR":/recordings \
-        -v "$INFERENCE_DIR":/app/Inference \
-        --restart unless-stopped \
-        $IMAGE_NAME
+    # Check GPU availability and construct docker run command accordingly
+    if check_gpu; then
+        echo "Starting container with GPU support..."
+        docker run -d \
+            --gpus all \
+            --name $CONTAINER_NAME \
+            -p ${HOST_PORT}:${CONTAINER_PORT} \
+            -v $HOME/.irods:/home/ml_user/.irods \
+            -v "$RECORDINGS_DIR":/recordings \
+            -v "$INFERENCE_DIR":/app/Inference \
+            --restart unless-stopped \
+            $IMAGE_NAME
+    else
+        echo "Starting container without GPU support..."
+        docker run -d \
+            --name $CONTAINER_NAME \
+            -p ${HOST_PORT}:${CONTAINER_PORT} \
+            -v $HOME/.irods:/home/ml_user/.irods \
+            -v "$RECORDINGS_DIR":/recordings \
+            -v "$INFERENCE_DIR":/app/Inference \
+            --restart unless-stopped \
+            $IMAGE_NAME
+    fi
 
     if [ $? -eq 0 ]; then
         echo "Container started successfully"
