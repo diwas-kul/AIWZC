@@ -188,8 +188,7 @@ def login():
     if not auth or not auth.username or not auth.password:
         return jsonify({'message': 'Missing credentials'}), 401
     
-    # WARNING: Replace with secure authentication in production
-    if auth.username == "admin" and auth.password == "your-secure-password":
+    if auth.username == "admin" and auth.password == "AI@WZCProject":
         token = jwt.encode(
             {
                 'user': auth.username,
@@ -201,22 +200,29 @@ def login():
     
     return jsonify({'message': 'Invalid credentials'}), 401
 
-@app.route('/init/<path:rtsp_url>', methods=['POST'])
+
+@app.route('/init/<path:rtsp_url>', methods=['GET'])
 @require_auth
 def initialize(rtsp_url):
     """Initialize recording manager with RTSP URL."""
     global recording_manager
     try:
+        # Get parameters from query string
+        subject_id = request.args.get('subject_id', 'subject3')
+        session_id = request.args.get('session_id', '0')
+        
         if not rtsp_url.startswith('rtsp://'):
             rtsp_url = f"rtsp://{rtsp_url}"
             
-        recording_manager = RecordingManager(rtsp_url)
-        logger.info(f"Initialized recording manager with URL: {rtsp_url}")
+        recording_manager = RecordingManager(rtsp_url, subject_id=subject_id, session_id=session_id)
+        logger.info(f"Initialized recording manager with URL: {rtsp_url}, subject_id: {subject_id}, session_id: {session_id}")
         
         return jsonify({
             "status": "success",
             "message": "Recording manager initialized",
-            "rtsp_url": rtsp_url
+            "rtsp_url": rtsp_url,
+            "subject_id": subject_id,
+            "session_id": session_id
         })
     except Exception as e:
         logger.error(f"Initialization error: {str(e)}")
@@ -224,6 +230,7 @@ def initialize(rtsp_url):
             "status": "error",
             "message": str(e)
         }), 500
+
 
 @app.route('/start', methods=['POST'])
 @require_auth

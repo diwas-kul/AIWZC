@@ -11,6 +11,7 @@ import glob
 import imageio
 import ntpath
 import cv2
+import argparse
 
 # MotionBERT imports
 from utils.loader import *
@@ -375,20 +376,31 @@ def get_exercise_outcomes(class_labels, joint_data, subject_id, session_id, outp
     print(f"Outcomes successfully saved to {output_file}")
 
 if __name__ == "__main__":
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Exercise Analysis Pipeline')
+    parser.add_argument('--subject_id', type=str, default='subject3',
+                      help='Subject ID (default: subject3)')
+    parser.add_argument('--session_id', type=str, default='0',
+                      help='Session ID (default: 0)')
+    parser.add_argument('--video', type=str, 
+                      default='./demo/Exercise_Elderly_Trim.mp4',
+                      help='Path to video file (default: ./demo/Exercise_Elderly_Trim.mp4)')
+    
     os.chdir(sys.path[0])
     args_class = get_config("./configs/class.yaml")
     args_reg = get_config("./configs/reg.yaml")
     output_folder = "./exercise_outcomes"
     os.makedirs(output_folder, exist_ok=True)
-    subject_id = 'subject3' # TODO: Replace with the actual subject ID
-    session_id = '0' # TODO: Replace with the actual session ID
 
-    # Run alphapose
-    videofile = "./demo/Exercise_Elderly_Trim.mp4" # TODO: Accept argument for the video file
+    # Parse command-line arguments
+    cli_args = parser.parse_args()
+    subject_id = cli_args.subject_id
+    session_id = cli_args.session_id
+    videofile = cli_args.video
 
-    # json_pose_path = alphapose_mod(videofile) # extracts the AlphaPose json output
+    json_pose_path = alphapose_mod(videofile) # extracts the AlphaPose json output
     npy_pose_path = './motionbert/results_test_pose/demo/' # output path for saving the npy pose file
-    # create_pose_data(json_pose_path, npy_pose_path) # converts the AlphaPose 2D pose into a human-centric 2D pose saved in npy
+    create_pose_data(json_pose_path, npy_pose_path) # converts the AlphaPose 2D pose into a human-centric 2D pose saved in npy
 
     # Load human-centric 2D pose data from saved npy file 
     # test variable is load the demo files or not 

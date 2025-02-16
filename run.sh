@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Define variables
-IMAGE_NAME="ml-video-processor"
-CONTAINER_NAME="ml-video-processor"
+IMAGE_NAME="aiwzc-server"
+CONTAINER_NAME="aiwzc-server"
 HOST_PORT=5000
 CONTAINER_PORT=5000
 
@@ -17,20 +17,7 @@ show_usage() {
     echo "  demo     - Run video_demo.py"
 }
 
-# Function to build Docker image
-build_image() {
-    echo "Building Docker image..."
-    docker build -t $IMAGE_NAME .
-    
-    if [ $? -eq 0 ]; then
-        echo "Image built successfully"
-    else
-        echo "Error building image"
-        exit 1
-    fi
-}
-
-# Add this function to check GPU availability
+# Check GPU availability
 check_gpu() {
     if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
         echo "GPU detected"
@@ -40,6 +27,26 @@ check_gpu() {
         return 1
     fi
 }
+
+# Function to build Docker image
+build_image() {
+    echo "Checking GPU availability for build..."
+    if check_gpu; then
+        echo "Building GPU-enabled Docker image..."
+        docker build -t $IMAGE_NAME -f Dockerfile.gpu .
+    else
+        echo "Building CPU-only Docker image..."
+        docker build -t $IMAGE_NAME -f Dockerfile.cpu .
+    fi
+    
+    if [ $? -eq 0 ]; then
+        echo "Image built successfully"
+    else
+        echo "Error building image"
+        exit 1
+    fi
+}
+
 
 # Function to run container
 run_container() {
