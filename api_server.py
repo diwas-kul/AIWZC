@@ -9,10 +9,13 @@ import jwt
 import time
 from werkzeug.security import check_password_hash
 
+from inference_queue import InferenceQueueManager
+inference_queue = InferenceQueueManager("/app/Inference/pilot.py")
+
 app = Flask(__name__)
 # WARNING: Change this in production!
-app.config['SECRET_KEY'] = 'your-secret-key-here'  
-app.config['JWT_EXPIRATION_HOURS'] = 24
+app.config['SECRET_KEY'] = 'AI@WZCProject'
+app.config['JWT_EXPIRATION_HOURS'] = 168  # 1 week expiration
 app.config['UPLOAD_TIMEOUT'] = 300  # 5 minutes timeout for ManGO uploads
 
 # Configure logging
@@ -46,16 +49,21 @@ def require_auth(f):
 class RecordingManager:
     """Manages RTSP recording sessions and ManGO uploads."""
     
-    def __init__(self, rtsp_url, duration=180, irods_path="/set/home/Gait_Team/AI@WZC/VideoUpload"):
+    def __init__(self, rtsp_url, subject_id="subject3", session_id="0", 
+                 duration=120, irods_path="/set/home/Gait_Team/AI@WZC/VideoUpload"):
         """
         Initialize the recording manager.
         
         Args:
             rtsp_url (str): RTSP stream URL
+            subject_id (str): Subject identifier
+            session_id (str): Session identifier
             duration (int): Maximum recording duration in seconds
             irods_path (str): ManGO upload destination path
         """
         self.rtsp_url = rtsp_url
+        self.subject_id = subject_id
+        self.session_id = session_id
         self.duration = duration
         self.irods_path = irods_path
         self.is_recording = False
@@ -64,6 +72,7 @@ class RecordingManager:
         self.process = None
         self._upload_thread = None
         self._recording_start_time = None
+        self.current_task_id = None
 
     def start_recording(self):
         """Start a new recording session."""
@@ -160,10 +169,18 @@ class RecordingManager:
                     
                     if upload_process.returncode == 0:
                         logger.info("Upload successful")
-                        latest_recording.unlink()
-                        logger.info(f"Removed local file: {latest_recording}")
+
+
+                        # Queue inference task
+                        self.current_task_id = inference_queue.add_task(
+                            str(latest_recording),
+                            self.subject_id,
+                            self.session_id
+                        )
+                        logger.info(f"Queued inference task with ID: {self.current_task_id}")
+
                     else:
-                        logger.error(f"Upload failed: {upload_process.stderr}")
+                        logger.error(f"Upload to ManGO failed: {upload_process.stderr}")
                 except subprocess.TimeoutExpired:
                     logger.error("Upload timeout exceeded")
                 except Exception as e:
@@ -177,6 +194,13 @@ class RecordingManager:
             self.is_recording = False
             self.process = None
             self._recording_start_time = None
+
+
+    def get_inference_status(self):
+        """Get the status of the current inference task if any."""
+        if self.current_task_id:
+            return inference_queue.get_task_status(self.current_task_id)
+        return None
 
 # Global recording manager instance
 recording_manager = None
@@ -264,25 +288,60 @@ def stop_recording():
         "message": message
     }), 200 if success else 400
 
+
 @app.route('/status', methods=['GET'])
 @require_auth
 def get_status():
-    """Get current recording status."""
+    """Get comprehensive status of both recording and inference queue."""
     if not recording_manager:
         return jsonify({
             "status": "error",
             "message": "Recording manager not initialized"
         }), 400
 
-    recording_time = None
+    # Get recording status
+    recording_status = {
+        "is_recording": recording_manager.is_recording,
+        "recording_time": None
+    }
+    
     if recording_manager._recording_start_time:
-        recording_time = time.time() - recording_manager._recording_start_time
-
+        recording_status["recording_time"] = time.time() - recording_manager._recording_start_time
+        
+    # Get queue status from inference queue manager
+    queue_status = inference_queue.get_queue_status()
+    
     return jsonify({
         "status": "success",
-        "is_recording": recording_manager.is_recording,
-        "recording_time": recording_time
+        "recording": recording_status,
+        "inference": {
+            "current_task": queue_status["current_task"],
+            "queue_length": queue_status["queue_length"],
+            "pending_tasks": queue_status["pending_tasks"]
+        }
     })
+
+@app.route('/inference_status', methods=['GET'])
+@require_auth
+def get_inference_status():
+    """Get detailed status of the inference queue."""
+    if not recording_manager:
+        return jsonify({
+            "status": "error",
+            "message": "Recording manager not initialized"
+        }), 400
+    
+    # Get complete queue status
+    queue_status = inference_queue.get_queue_status()
+    
+    # Add log file location for completed tasks
+    queue_status["completed_tasks_log"] = str(inference_queue.log_file)
+    
+    return jsonify({
+        "status": "success",
+        "queue": queue_status
+    })
+
 
 if __name__ == '__main__':
     # Make sure the recordings directory exists

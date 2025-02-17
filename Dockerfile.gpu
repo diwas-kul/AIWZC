@@ -50,21 +50,39 @@ RUN useradd -u 1000 -m irods_user \
 WORKDIR /app
 
 # Copy only the necessary files (not Inference)
-COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py ./
+COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py inference_queue.py ./
 
-# Install Python dependencies
-RUN python3.10 -m pip install --no-cache-dir -r requirements.txt && \
-    python3.10 -m pip install --no-cache-dir \
-        torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
-    python3.10 -m pip install --no-cache-dir \
-        psutil \
-        tqdm \
-        pyyaml \
-        scikit-learn \
-        scipy \
-        imageio \
-        opencv-python-headless \
-        matplotlib pandas smplx h5py easydict ipdb visdom
+# The critical section of your Dockerfile should be updated to:
+
+# Install base requirements
+RUN python3.10 -m pip install --no-cache-dir -r requirements.txt
+
+# Install NumPy and related packages first
+RUN python3.10 -m pip install --no-cache-dir \
+    'numpy<2.0' \
+    'scipy<2.0' \
+    'pandas<2.0'
+
+# Install PyTorch ecosystem with specific CUDA version
+RUN python3.10 -m pip install --no-cache-dir \
+    torch==2.0.1+cu118 \
+    torchvision==0.15.2+cu118 \
+    --extra-index-url https://download.pytorch.org/whl/cu118
+
+# Install additional dependencies with specific versions
+RUN python3.10 -m pip install --no-cache-dir \
+    psutil==5.9.5 \
+    tqdm==4.65.0 \
+    pyyaml==6.0.1 \
+    scikit-learn==1.3.0 \
+    imageio==2.31.1 \
+    opencv-python-headless==4.8.0.76 \
+    matplotlib==3.7.2 \
+    smplx==0.1.28 \
+    h5py==3.9.0 \
+    easydict==1.10 \
+    ipdb==0.13.13 \
+    visdom==0.2.4
 
 # Create mount point for Inference
 RUN mkdir -p /app/Inference && chown -R irods_user:irods_user /app

@@ -377,14 +377,7 @@ def get_exercise_outcomes(class_labels, joint_data, subject_id, session_id, outp
 
 if __name__ == "__main__":
     # Set up argument parser
-    parser = argparse.ArgumentParser(description='Exercise Analysis Pipeline')
-    parser.add_argument('--subject_id', type=str, default='subject3',
-                      help='Subject ID (default: subject3)')
-    parser.add_argument('--session_id', type=str, default='0',
-                      help='Session ID (default: 0)')
-    parser.add_argument('--video', type=str, 
-                      default='./demo/Exercise_Elderly_Trim.mp4',
-                      help='Path to video file (default: ./demo/Exercise_Elderly_Trim.mp4)')
+    args = opt  # opt is already imported from alphapose_args
     
     os.chdir(sys.path[0])
     args_class = get_config("./configs/class.yaml")
@@ -392,22 +385,36 @@ if __name__ == "__main__":
     output_folder = "./exercise_outcomes"
     os.makedirs(output_folder, exist_ok=True)
 
-    # Parse command-line arguments
-    cli_args = parser.parse_args()
-    subject_id = cli_args.subject_id
-    session_id = cli_args.session_id
-    videofile = cli_args.video
+    # Get parameters from args (which comes from alphapose_args)
+    subject_id = args.subject_id
+    session_id = args.session_id
+    videofile = args.video
+    # videofile = "demo/Exercise_Elderly_Trim.mp4"
 
-    json_pose_path = alphapose_mod(videofile) # extracts the AlphaPose json output
-    npy_pose_path = './motionbert/results_test_pose/demo/' # output path for saving the npy pose file
-    create_pose_data(json_pose_path, npy_pose_path) # converts the AlphaPose 2D pose into a human-centric 2D pose saved in npy
+    try:
+        print("Running AlphaPose...")
+        json_pose_path = alphapose_mod(videofile) # extracts the AlphaPose json output
+    except Exception as e:
+        print(f"Error during AlphaPose processing: {e}")
 
-    # Load human-centric 2D pose data from saved npy file 
-    # test variable is load the demo files or not 
-    data_class = create_dataloader(['patient3'], 243, 1, test=True, task="classification", batch_size=32, shuffle=False)
-    data_reg = create_dataloader(['patient3'], 243, 243, test=True, task="regression", batch_size=2, shuffle=False)
+    try:
+        print("Creating pose data...")
+        npy_pose_path = './motionbert/results_test_pose/demo/' # output path for saving the npy pose file
+        create_pose_data(json_pose_path, npy_pose_path) # converts the AlphaPose 2D pose into a human-centric 2D pose saved in npy
+    except Exception as e:
+        print(f"Error creating pose data: {e}")
 
-    # Inference
-    class_labels = inference(data_class, args_class, 'classification')
-    joint_data = inference(data_reg, args_reg, 'regression')
+
+    try: 
+        # Load human-centric 2D pose data from saved npy file 
+        data_class = create_dataloader(['patient3'], 243, 1, test=True, task="classification", batch_size=32, shuffle=False)
+        data_reg = create_dataloader(['patient3'], 243, 243, test=True, task="regression", batch_size=2, shuffle=False)
+        
+        # Inference
+        class_labels = inference(data_class, args_class, 'classification')
+        joint_data = inference(data_reg, args_reg, 'regression')
+    except Exception as e:
+        print(f"Error during inference: {e}")
+        sys.exit(1)
+
     get_exercise_outcomes(class_labels, joint_data, subject_id, session_id, output_folder)

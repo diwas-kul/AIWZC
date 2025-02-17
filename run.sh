@@ -14,7 +14,7 @@ show_usage() {
     echo "  both     - Build and run"
     echo "  stop     - Stop and remove the container"
     echo "  logs     - Show container logs"
-    echo "  demo     - Run video_demo.py"
+    echo "  demo     - Run Inference/pilot.py"
 }
 
 # Check GPU availability
@@ -73,7 +73,7 @@ run_container() {
             --gpus all \
             --name $CONTAINER_NAME \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
-            -v $HOME/.irods:/home/ml_user/.irods \
+            -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
             --restart unless-stopped \
@@ -83,7 +83,7 @@ run_container() {
         docker run -d \
             --name $CONTAINER_NAME \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
-            -v $HOME/.irods:/home/ml_user/.irods \
+            -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
             --restart unless-stopped \

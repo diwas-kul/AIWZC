@@ -146,6 +146,13 @@ parser.add_argument('--save_video', dest='save_video',
                     help='whether to save rendered video', default=True, action='store_true')
 parser.add_argument('--vis_fast', dest='vis_fast',
                     help='use fast rendering', action='store_true', default=False)
-opt = parser.parse_args()
 
+"----------------------------- Exercise Analysis options -----------------------------"
+parser.add_argument('--subject_id', type=str, default='subject3',
+                    help='Subject ID (default: subject3)')
+parser.add_argument('--session_id', type=str, default='0',
+                    help='Session ID (default: 0)')
+
+
+opt = parser.parse_args()
 opt.num_classes = 80

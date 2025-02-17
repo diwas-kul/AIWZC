@@ -31,21 +31,25 @@ RUN useradd -u 1000 -m irods_user \
 WORKDIR /app
 
 # Copy only the necessary files (not Inference)
-COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py ./
+COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py inference_queue.py ./
+
+# Base requirements
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir \
-        torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir \
-        psutil \
-        tqdm \
-        pyyaml \
-        scikit-learn \
-        scipy \
-        imageio \
-        opencv-python-headless \
-        matplotlib pandas smplx h5py easydict ipdb visdom
+RUN pip install --no-cache-dir \
+    psutil \
+    tqdm \
+    pyyaml \
+    scikit-learn \
+    scipy \
+    imageio \
+    opencv-python-headless \
+    matplotlib pandas smplx h5py easydict ipdb visdom
+
+# PyTorch (separate layer)
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Create mount point for Inference
 RUN mkdir -p /app/Inference && chown -R irods_user:irods_user /app
