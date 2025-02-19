@@ -65,11 +65,19 @@ run_container() {
     
     # Set proper permissions
     chmod 700 "$RECORDINGS_DIR"
+
+    # Add host.docker.internal mapping based on OS
+    if [ "$(uname)" == "Linux" ]; then
+        DOCKER_HOST_FLAG="--add-host=host.docker.internal:host-gateway"
+    else
+        DOCKER_HOST_FLAG=""  # Not needed for macOS/Windows as it's automatic
+    fi
     
     # Check GPU availability and construct docker run command accordingly
     if check_gpu; then
         echo "Starting container with GPU support..."
         docker run -d \
+            $DOCKER_HOST_FLAG \
             --gpus all \
             --name $CONTAINER_NAME \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
@@ -81,6 +89,7 @@ run_container() {
     else
         echo "Starting container without GPU support..."
         docker run -d \
+            $DOCKER_HOST_FLAG \
             --name $CONTAINER_NAME \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
             -v $HOME/.irods:/home/irods_user/.irods \

@@ -47,7 +47,7 @@ default_password = 'your-secure-password'
 
 ### Authentication
 
-Get an authentication token (valid for 24 hours):
+Get an authentication token (valid for 1 week):
 ```bash
 curl -X POST -u admin:AI@WZCProject http://localhost:5000/login
 ```
@@ -59,34 +59,33 @@ export TOKEN="your-token-here"
 
 ### Recording and Inference
 
-1. Initialize with RTSP URL and session info:
-```bash
-curl -X GET \
-  -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/init/rtsp://camera-ip:port/stream?subject_id=subject3&session_id=0'
-```
-
-2. Start recording:
+1. Start recording with RTSP URL and session info:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:5000/start
+  -H "Content-Type: application/json" \
+  -d '{
+    "rtsp_url": "192.168.1.100:554/stream",
+    "subject_id": "subject3",
+    "session_id": "0"
+  }' \
+  http://localhost:5000/start_recording
 ```
 
-3. Stop recording:
+2. Stop recording:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
   http://localhost:5000/stop
 ```
 
-4. Check recording and inference status:
+3. Check recording and inference status:
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:5000/status
 ```
 
-5. Get detailed inference queue status:
+4. Get detailed inference queue status:
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:5000/inference_status
@@ -101,24 +100,34 @@ Here's a complete example of recording two exercise sessions:
 TOKEN=$(curl -s -X POST -u admin:AI@WZCProject http://localhost:5000/login | jq -r '.token')
 
 # First recording
-curl -X GET \
+curl -k -X POST \
   -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/init/rtsp://camera-ip:port/stream?subject_id=subject3&session_id=0'
+  -H "Content-Type: application/json" \
+  -d '{
+    "rtsp_url": "192.168.1.100:554/stream",
+    "subject_id": "subject3",
+    "session_id": "0"
+  }' \
+  https://localhost:5000/start_recording
 
-curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:5000/start
 echo "Recording first session... (waiting 3 minutes)"
 sleep 180
 curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:5000/stop
 
 # Second recording
-curl -X GET \
+curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/init/rtsp://camera-ip:port/stream?subject_id=subject3&session_id=1'
+  -H "Content-Type: application/json" \
+  -d '{
+    "rtsp_url": "192.168.1.100:554/stream",
+    "subject_id": "subject3",
+    "session_id": "1"
+  }' \
+  http://localhost:5000/start_recording
 
-curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:5000/start
 echo "Recording second session... (waiting 3 minutes)"
 sleep 180
-curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:5000/stop
+curl -k -X POST -H "Authorization: Bearer $TOKEN" https://localhost:5000/stop
 
 # Monitor status
 curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/status

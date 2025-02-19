@@ -225,52 +225,60 @@ def login():
     return jsonify({'message': 'Invalid credentials'}), 401
 
 
-@app.route('/init/<path:rtsp_url>', methods=['GET'])
+@app.route('/start_recording', methods=['POST'])
 @require_auth
-def initialize(rtsp_url):
-    """Initialize recording manager with RTSP URL."""
+def start_recording_session():
+    """Initialize recording manager and start recording in a single step."""
     global recording_manager
     try:
-        # Get parameters from query string
-        subject_id = request.args.get('subject_id', 'subject3')
-        session_id = request.args.get('session_id', '0')
+        # Get parameters from request body
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "Missing request body"
+            }), 400
+            
+        rtsp_url = data.get('rtsp_url')
+        if not rtsp_url:
+            return jsonify({
+                "status": "error",
+                "message": "Missing rtsp_url in request body"
+            }), 400
+            
+        subject_id = data.get('subject_id', 'subject3')
+        session_id = data.get('session_id', '0')
         
         if not rtsp_url.startswith('rtsp://'):
             rtsp_url = f"rtsp://{rtsp_url}"
             
+        # Initialize recording manager
         recording_manager = RecordingManager(rtsp_url, subject_id=subject_id, session_id=session_id)
         logger.info(f"Initialized recording manager with URL: {rtsp_url}, subject_id: {subject_id}, session_id: {session_id}")
         
+        # Start recording immediately
+        success, message = recording_manager.start_recording()
+        
+        if not success:
+            return jsonify({
+                "status": "error",
+                "message": f"Failed to start recording: {message}"
+            }), 400
+            
         return jsonify({
             "status": "success",
-            "message": "Recording manager initialized",
+            "message": "Recording manager initialized and recording started",
             "rtsp_url": rtsp_url,
             "subject_id": subject_id,
             "session_id": session_id
         })
     except Exception as e:
-        logger.error(f"Initialization error: {str(e)}")
+        logger.error(f"Initialization and recording error: {str(e)}")
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
-
-
-@app.route('/start', methods=['POST'])
-@require_auth
-def start_recording():
-    """Start recording from initialized RTSP stream."""
-    if not recording_manager:
-        return jsonify({
-            "status": "error",
-            "message": "Recording manager not initialized. Call /init first."
-        }), 400
-
-    success, message = recording_manager.start_recording()
-    return jsonify({
-        "status": "success" if success else "error",
-        "message": message
-    }), 200 if success else 400
+    
 
 @app.route('/stop', methods=['POST'])
 @require_auth
