@@ -49,17 +49,14 @@ RUN useradd -u 1000 -m irods_user \
 # Set up application directory
 WORKDIR /app
 
-# Copy only the necessary files (not Inference)
-COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py inference_queue.py ./
+# Copy only requirements.txt first to leverage Docker cache
+COPY --chown=irods_user:irods_user requirements.txt .
 
-# The critical section of your Dockerfile should be updated to:
-
-# Install base requirements
+# Install base requirements 
 RUN python3.10 -m pip install --no-cache-dir -r requirements.txt
 
 # Install NumPy and related packages first
 RUN python3.10 -m pip install --no-cache-dir \
-    'numpy<2.0' \
     'scipy<2.0' \
     'pandas<2.0'
 

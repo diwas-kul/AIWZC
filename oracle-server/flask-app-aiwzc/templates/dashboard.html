@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | AI@WZC Control Panel{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>System Dashboard</h2>
+    </div>
+</div>
+
+<!-- Status Cards -->
+<div class="row mb-4">
+    <!-- VPN Server Status -->
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-server me-2"></i>VPN Server
+                </h5>
+                <div class="mt-3">
+                    <span class="badge bg-success fs-6 p-2">
+                        <i class="fas fa-check-circle me-1"></i>Online
+                    </span>
+                </div>
+                <p class="card-text mt-3">
+                    <strong>Host:</strong> signaling.ddns.net<br>
+                    <strong>IP:</strong> 10.8.0.1
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Laptop Status -->
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-laptop me-2"></i>Processing System
+                </h5>
+                <div class="mt-3">
+                    {% if laptop_online %}
+                    <span class="badge bg-success fs-6 p-2">
+                        <i class="fas fa-check-circle me-1"></i>Online
+                    </span>
+                    {% else %}
+                    <span class="badge bg-danger fs-6 p-2">
+                        <i class="fas fa-times-circle me-1"></i>Offline
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="card-text mt-3">
+                    <strong>IP:</strong> 10.8.0.2<br>
+                    <strong>API Status:</strong> 
+                    {% if laptop_online %}
+                    <span class="text-success">Responding</span>
+                    {% else %}
+                    <span class="text-danger">Not responding</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recording Status -->
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-video me-2"></i>Recording Status
+                </h5>
+                <div class="mt-3" id="recording-status-badge">
+                    {% if recording_status and recording_status.recording.is_recording %}
+                    <span class="badge bg-danger fs-6 p-2 recording-active">
+                        <i class="fas fa-circle me-1"></i>Recording
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary fs-6 p-2">
+                        <i class="fas fa-stop-circle me-1"></i>Idle
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="mt-3" id="recording-details">
+                    {% if recording_status and recording_status.recording.is_recording %}
+                    <p class="card-text">
+                        <strong>Duration:</strong> <span id="recording-time">{{ recording_status.recording.recording_time|round|int }} seconds</span>
+                    </p>
+                    {% else %}
+                    <p class="card-text">No active recording session.</p>
+                    {% endif %}
+                </div>
+                <div class="mt-2">
+                    <a href="{{ url_for('control') }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-sliders-h me-1"></i>Control Panel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connected Peers -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-network-wired me-2"></i>VPN Peers</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Last Handshake</th>
+                                <th>Data Transfer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for peer in peers %}
+                            <tr>
+                                <td>
+                                    {% if peer.name == 'Laptop' %}
+                                    <i class="fas fa-laptop me-2"></i>
+                                    {% elif peer.name == 'Tablet' %}
+                                    <i class="fas fa-tablet-alt me-2"></i>
+                                    {% else %}
+                                    <i class="fas fa-user me-2"></i>
+                                    {% endif %}
+                                    {{ peer.name }}
+                                </td>
+                                <td><code>{{ peer.allowed_ips }}</code></td>
+                                <td>
+                                    {% if peer.status == 'online' %}
+                                    <span class="badge bg-success">Online</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Offline</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ peer.latest_handshake or 'Never' }}</td>
+                                <td>
+                                    {% if peer.received and peer.sent %}
+                                    <small>
+                                        <i class="fas fa-arrow-down text-success"></i> {{ peer.received }}<br>
+                                        <i class="fas fa-arrow-up text-primary"></i> {{ peer.sent }}
+                                    </small>
+                                    {% else %}
+                                    <small class="text-muted">No data</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">No peers found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inference Queue Status -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-brain me-2"></i>Inference Queue</h5>
+            </div>
+            <div class="card-body" id="inference-status">
+                {% if laptop_online and recording_status and recording_status.inference %}
+                    {% if recording_status.inference.current_task %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-cog fa-spin me-2"></i>Currently Processing:</h6>
+                        <p>{{ recording_status.inference.current_task.video_path }}</p>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                role="progressbar" style="width: 100%">
+                                Processing for {{ recording_status.inference.current_task.timing.processing_time|round|int }} seconds
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if recording_status.inference.queue_length > 0 %}
+                    <h6 class="mt-3"><i class="fas fa-list me-2"></i>Pending Tasks: {{ recording_status.inference.queue_length }}</h6>
+                    <ul class="list-group">
+                        {% for task in recording_status.inference.pending_tasks %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-file-video me-2"></i>{{ task.video_path }}
+                                </div>
+                                <span class="badge bg-warning">Waiting for {{ task.timing.time_in_queue|round|int }} seconds</span>
+                            </div>
+                            <small class="text-muted">Subject: {{ task.subject_id }}, Session: {{ task.session_id }}</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% elif recording_status.inference.current_task %}
+                    <p class="mt-3">No pending tasks in queue.</p>
+                    {% endif %}
+                    
+                    {% if not recording_status.inference.current_task and recording_status.inference.queue_length == 0 %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>No active inference tasks. System is idle.
+                    </div>
+                    {% endif %}
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% if not laptop_online %}
+                    Cannot fetch inference status: Laptop is offline.
+                    {% else %}
+                    No inference status information available.
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <button id="refresh-status" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-sync me-1"></i>Refresh Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshButton = document.getElementById('refresh-status');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', refreshStatus);
+        }
+        
+        // Auto refresh every 10 seconds
+        setInterval(refreshStatus, 10000);
+    });
+    
+    function refreshStatus() {
+        // Use HTTP protocol for fetch request to refresh API
+        fetch('{{ url_for("refresh_status") }}', {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.laptop_online && data.status) {
+                    updateRecordingStatus(data.status);
+                    updateInferenceStatus(data.status);
+                    
+                    // Update laptop status indicator to online
+                    const laptopStatusElement = document.querySelector('.col-md-4:nth-child(2) .badge');
+                    if (laptopStatusElement) {
+                        laptopStatusElement.className = 'badge bg-success fs-6 p-2';
+                        laptopStatusElement.innerHTML = '<i class="fas fa-check-circle me-1"></i>Online';
+                    }
+                    
+                    const laptopApiStatusElement = document.querySelector('.col-md-4:nth-child(2) .card-text .text-danger, .col-md-4:nth-child(2) .card-text .text-success');
+                    if (laptopApiStatusElement) {
+                        laptopApiStatusElement.className = 'text-success';
+                        laptopApiStatusElement.textContent = 'Responding';
+                    }
+                } else {
+                    document.getElementById('recording-status-badge').innerHTML = `
+                        <span class="badge bg-secondary fs-6 p-2">
+                            <i class="fas fa-exclamation-circle me-1"></i>Unavailable
+                        </span>
+                    `;
+                    document.getElementById('recording-details').innerHTML = `
+                        <p class="card-text">Cannot fetch status: Laptop is offline.</p>
+                    `;
+                    document.getElementById('inference-status').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Cannot fetch inference status: Laptop is offline.
+                        </div>
+                    `;
+                    
+                    // Update laptop status indicator to offline
+                    const laptopStatusElement = document.querySelector('.col-md-4:nth-child(2) .badge');
+                    if (laptopStatusElement) {
+                        laptopStatusElement.className = 'badge bg-danger fs-6 p-2';
+                        laptopStatusElement.innerHTML = '<i class="fas fa-times-circle me-1"></i>Offline';
+                    }
+                    
+                    const laptopApiStatusElement = document.querySelector('.col-md-4:nth-child(2) .card-text .text-danger, .col-md-4:nth-child(2) .card-text .text-success');
+                    if (laptopApiStatusElement) {
+                        laptopApiStatusElement.className = 'text-danger';
+                        laptopApiStatusElement.textContent = 'Not responding';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing status:', error);
+            });
+    }
+    
+    function updateRecordingStatus(status) {
+        const badgeElement = document.getElementById('recording-status-badge');
+        const detailsElement = document.getElementById('recording-details');
+        
+        if (status.recording.is_recording) {
+            badgeElement.innerHTML = `
+                <span class="badge bg-danger fs-6 p-2 recording-active">
+                    <i class="fas fa-circle me-1"></i>Recording
+                </span>
+            `;
+            detailsElement.innerHTML = `
+                <p class="card-text">
+                    <strong>Duration:</strong> <span id="recording-time">${Math.round(status.recording.recording_time)} seconds</span>
+                </p>
+            `;
+        } else {
+            badgeElement.innerHTML = `
+                <span class="badge bg-secondary fs-6 p-2">
+                    <i class="fas fa-stop-circle me-1"></i>Idle
+                </span>
+            `;
+            detailsElement.innerHTML = `
+                <p class="card-text">No active recording session.</p>
+            `;
+        }
+    }
+    
+    function updateInferenceStatus(status) {
+        const inferenceElement = document.getElementById('inference-status');
+        let html = '';
+        
+        if (status.inference) {
+            if (status.inference.current_task) {
+                html += `
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-cog fa-spin me-2"></i>Currently Processing:</h6>
+                        <p>${status.inference.current_task.video_path}</p>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                role="progressbar" style="width: 100%">
+                                Processing for ${Math.round(status.inference.current_task.timing.processing_time)} seconds
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (status.inference.queue_length > 0) {
+                html += `
+                    <h6 class="mt-3"><i class="fas fa-list me-2"></i>Pending Tasks: ${status.inference.queue_length}</h6>
+                    <ul class="list-group">
+                `;
+                
+                for (const task of status.inference.pending_tasks) {
+                    html += `
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-file-video me-2"></i>${task.video_path}
+                                </div>
+                                <span class="badge bg-warning">Waiting for ${Math.round(task.timing.time_in_queue)} seconds</span>
+                            </div>
+                            <small class="text-muted">Subject: ${task.subject_id}, Session: ${task.session_id}</small>
+                        </li>
+                    `;
+                }
+                
+                html += `</ul>`;
+            } else if (status.inference.current_task) {
+                html += `<p class="mt-3">No pending tasks in queue.</p>`;
+            }
+            
+            if (!status.inference.current_task && status.inference.queue_length === 0) {
+                html += `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>No active inference tasks. System is idle.
+                    </div>
+                `;
+            }
+        } else {
+            html += `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    No inference status information available.
+                </div>
+            `;
+        }
+        
+        inferenceElement.innerHTML = html;
+    }
+</script>
+{% endblock %}

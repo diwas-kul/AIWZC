@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+
+{% block title %}Control Panel | AI@WZC Control Panel{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="fas fa-sliders-h me-2"></i>Recording Control Panel</h2>
+    </div>
+</div>
+
+<!-- System Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>System Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center border-end">
+                        <h6>Laptop Processing System</h6>
+                        {% if laptop_online %}
+                        <span class="badge bg-success p-2 fs-6 mb-2">
+                            <i class="fas fa-check-circle me-1"></i>Online
+                        </span>
+                        {% else %}
+                        <span class="badge bg-danger p-2 fs-6 mb-2">
+                            <i class="fas fa-times-circle me-1"></i>Offline
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-center border-end">
+                        <h6>Tablet Camera</h6>
+                        {% if tablet_ip %}
+                        <span class="badge bg-success p-2 fs-6 mb-2">
+                            <i class="fas fa-check-circle me-1"></i>Connected
+                        </span>
+                        <p class="small mt-2">IP: {{ tablet_ip }}</p>
+                        {% else %}
+                        <span class="badge bg-warning p-2 fs-6 mb-2">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Not Detected
+                        </span>
+                        <p class="small mt-2">You can still use manual stream URLs</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>Recording Status</h6>
+                        <div id="recording-status-badge">
+                            <span class="badge bg-secondary p-2 fs-6 mb-2">
+                                <i class="fas fa-question-circle me-1"></i>Checking...
+                            </span>
+                        </div>
+                        <p class="small mt-2" id="recording-details">Fetching status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recording Controls -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-play-circle me-2"></i>Start Recording</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('web_start_recording') }}" method="POST" id="start-recording-form">
+                    <div class="mb-3">
+                        <label for="rtsp_url" class="form-label">Stream URL</label>
+                        <input type="text" class="form-control" id="rtsp_url" name="rtsp_url" 
+                               placeholder="rtsp://10.8.0.3:8554/video or http://10.8.0.3:8080/videofeed" 
+                               value="{{ tablet_ip + ':8554/video' if tablet_ip else '' }}" required>
+                        <div class="form-text">
+                            Enter the full URL of the camera stream. Supports multiple formats:
+                            <ul class="my-1">
+                                <li>RTSP: <code>rtsp://IP:PORT/path</code></li>
+                                <li>HTTP: <code>http://IP:PORT/path</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="subject_id" class="form-label">Subject ID</label>
+                                <input type="text" class="form-control" id="subject_id" name="subject_id" 
+                                       value="subject3" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="session_id" class="form-label">Session ID</label>
+                                <input type="text" class="form-control" id="session_id" name="session_id" 
+                                       value="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="start-recording-btn" 
+                                {% if not laptop_online %}{% endif %}>
+                            <i class="fas fa-play me-2"></i>Start Recording
+                        </button>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> You can use any accessible stream URL, even if the tablet is not detected. 
+                        Make sure the laptop can reach the stream address.
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-stop-circle me-2"></i>Stop Recording</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Stop the current recording session. The video will be automatically uploaded to ManGO 
+                    and queued for inference processing.
+                </p>
+                <p class="card-text" id="current-recording-info">
+                    No active recording.
+                </p>
+                <form action="{{ url_for('web_stop_recording') }}" method="POST">
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger" id="stop-recording-btn" disabled>
+                            <i class="fas fa-stop me-2"></i>Stop Recording
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Quick Setup Guide -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Quick Guide</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li>Enter the full stream URL (including protocol)</li>
+                    <li>Common formats:
+                        <ul>
+                            <li>Tablet RTSP: <code>rtsp://[IP]:8554/video</code></li>
+                            <li>IP Camera: <code>rtsp://[IP]:[PORT]/[PATH]</code></li>
+                            <li>Webcam: <code>http://[IP]:[PORT]/videofeed</code></li>
+                        </ul>
+                    </li>
+                    <li>Subject ID identifies the study participant</li>
+                    <li>Session ID differentiates multiple recordings of the same subject</li>
+                    <li>If the stream is not found, check the logs for details</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stream Test Tool -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Stream Test Tool</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="test-stream-url" 
+                                   placeholder="Enter stream URL to test">
+                            <button class="btn btn-outline-secondary" type="button" id="test-stream-btn">
+                                <i class="fas fa-vial me-1"></i>Test
+                            </button>
+                        </div>
+                        <div id="test-stream-result" class="mt-2"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-secondary">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>Tip:</strong> Use this tool to verify if a stream is reachable 
+                            before starting a recording. The test will check if the laptop can access the stream.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inference Status -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-brain me-2"></i>Inference Status</h5>
+                <button id="refresh-status" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-sync me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body" id="inference-status">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading inference status...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshButton = document.getElementById('refresh-status');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', refreshStatus);
+        }
+        
+        // Initial status fetch
+        refreshStatus();
+        
+        // Auto refresh every 5 seconds
+        setInterval(refreshStatus, 5000);
+        
+        // Update RTSP URL when tablet IP is detected
+        const tabletIp = "{{ tablet_ip }}";
+        const rtspUrlInput = document.getElementById('rtsp_url');
+        
+        if (tabletIp && rtspUrlInput && !rtspUrlInput.value) {
+            rtspUrlInput.value = `${tabletIp}:8554/video`;
+        }
+        
+        // Set up stream test button
+        const testStreamBtn = document.getElementById('test-stream-btn');
+        if (testStreamBtn) {
+            testStreamBtn.addEventListener('click', testStream);
+        }
+        
+        // Add Enter key support for test stream input
+        const testStreamUrlInput = document.getElementById('test-stream-url');
+        if (testStreamUrlInput) {
+            testStreamUrlInput.addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    testStream();
+                }
+            });
+        }
+    });
+    
+    function testStream() {
+        const testUrl = document.getElementById('test-stream-url').value.trim();
+        const resultArea = document.getElementById('test-stream-result');
+        
+        if (!testUrl) {
+            resultArea.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Please enter a stream URL to test
+                </div>
+            `;
+            return;
+        }
+        
+        // Add protocol if missing
+        let formattedUrl = testUrl;
+        if (!formattedUrl.startsWith('rtsp://') && !formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            formattedUrl = `rtsp://${formattedUrl}`;
+        }
+        
+        // Display loading indicator
+        resultArea.innerHTML = `
+            <div class="alert alert-info">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">Testing...</span>
+                    </div>
+                    <div>Testing connection to stream (${formattedUrl})...</div>
+                </div>
+            </div>
+        `;
+        
+        // For this demo, we'll simulate a response after a delay
+        // In a real implementation, you would call your server's test_stream endpoint
+        setTimeout(function() {
+            // For this demo, we'll randomly succeed or fail
+            const success = Math.random() > 0.3; // 70% chance of success
+            
+            if (success) {
+                resultArea.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Stream appears to be reachable! You can use this URL for recording.
+                        <button class="btn btn-sm btn-outline-success ms-2" onclick="useTestUrl('${formattedUrl}')">
+                            <i class="fas fa-arrow-right me-1"></i>Use this URL
+                        </button>
+                    </div>
+                `;
+            } else {
+                resultArea.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        Could not connect to stream. Please check the URL and make sure the stream is active.
+                    </div>
+                `;
+            }
+        }, 1500);
+    }
+    
+    function useTestUrl(url) {
+        document.getElementById('rtsp_url').value = url;
+    }
+    
+    function refreshStatus() {
+        fetch('{{ url_for("refresh_status") }}', {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                // Update recording status and controls
+                updateRecordingStatus(data);
+                
+                // Update inference status
+                updateInferenceStatus(data);
+                
+                // Update laptop status indicator
+                updateLaptopStatus(data.laptop_online);
+            })
+            .catch(error => {
+                console.error('Error refreshing status:', error);
+                document.getElementById('recording-status-badge').innerHTML = `
+                    <span class="badge bg-warning p-2 fs-6 mb-2">
+                        <i class="fas fa-exclamation-circle me-1"></i>Error
+                    </span>
+                `;
+                document.getElementById('recording-details').textContent = "Failed to fetch status";
+                document.getElementById('inference-status').innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Failed to fetch status. Please check your connection.
+                    </div>
+                `;
+                
+                // Assume laptop is offline when error occurs
+                updateLaptopStatus(false);
+            });
+    }
+    
+    function updateLaptopStatus(isOnline) {
+        // Get laptop status element
+        const laptopStatusBadge = document.querySelector('.col-md-4:nth-child(1) .badge');
+        
+        if (laptopStatusBadge) {
+            if (isOnline) {
+                laptopStatusBadge.className = 'badge bg-success p-2 fs-6 mb-2';
+                laptopStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Online';
+            } else {
+                laptopStatusBadge.className = 'badge bg-danger p-2 fs-6 mb-2';
+                laptopStatusBadge.innerHTML = '<i class="fas fa-times-circle me-1"></i>Offline';
+            }
+        }
+    }
+    
+    function updateRecordingStatus(data) {
+        const startButton = document.getElementById('start-recording-btn');
+        const stopButton = document.getElementById('stop-recording-btn');
+        const statusBadge = document.getElementById('recording-status-badge');
+        const recordingDetails = document.getElementById('recording-details');
+        const currentRecordingInfo = document.getElementById('current-recording-info');
+        
+        // Update buttons based on laptop status
+        if (!data.laptop_online) {
+            startButton.disabled = true;
+            stopButton.disabled = true;
+            statusBadge.innerHTML = `
+                <span class="badge bg-secondary p-2 fs-6 mb-2">
+                    <i class="fas fa-times-circle me-1"></i>Unavailable
+                </span>
+            `;
+            recordingDetails.textContent = "Laptop is offline";
+            currentRecordingInfo.textContent = "No connection to recording system";
+            return;
+        }
+        
+        // If we have status data
+        if (data.status) {
+            const isRecording = data.status.recording.is_recording;
+            
+            // Update recording status badge
+            if (isRecording) {
+                statusBadge.innerHTML = `
+                    <span class="badge bg-danger p-2 fs-6 mb-2 recording-active">
+                        <i class="fas fa-circle me-1"></i>Recording
+                    </span>
+                `;
+                
+                const recordingTime = Math.round(data.status.recording.recording_time);
+                const minutes = Math.floor(recordingTime / 60);
+                const seconds = recordingTime % 60;
+                recordingDetails.textContent = `Recording in progress: ${minutes}m ${seconds}s`;
+                
+                // Update current recording info
+                currentRecordingInfo.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Recording in progress</strong><br>
+                        Duration: ${minutes}m ${seconds}s
+                    </div>
+                `;
+                
+                // Enable stop button, disable start
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } else {
+                statusBadge.innerHTML = `
+                    <span class="badge bg-secondary p-2 fs-6 mb-2">
+                        <i class="fas fa-stop-circle me-1"></i>Idle
+                    </span>
+                `;
+                recordingDetails.textContent = "No active recording";
+                currentRecordingInfo.textContent = "No active recording session.";
+                
+                // Enable start button, disable stop
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        } else {
+            statusBadge.innerHTML = `
+                <span class="badge bg-warning p-2 fs-6 mb-2">
+                    <i class="fas fa-exclamation-circle me-1"></i>Unknown
+                </span>
+            `;
+            recordingDetails.textContent = "Could not determine status";
+            currentRecordingInfo.textContent = "Status information unavailable";
+            
+            // Disable both buttons if we can't determine status
+            startButton.disabled = true;
+            stopButton.disabled = true;
+        }
+    }
+    
+    function updateInferenceStatus(data) {
+        const inferenceElement = document.getElementById('inference-status');
+        
+        if (!data.laptop_online) {
+            inferenceElement.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Cannot fetch inference status: Laptop is offline.
+                </div>
+            `;
+            return;
+        }
+        
+        if (data.status && data.status.inference) {
+            let html = '';
+            const inference = data.status.inference;
+            
+            if (inference.current_task) {
+                const task = inference.current_task;
+                const processingTime = Math.round(task.timing.processing_time);
+                
+                html += `
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-cog fa-spin me-2"></i>Currently Processing:</h6>
+                        <p class="mb-1">${task.video_path}</p>
+                        <p class="mb-2">
+                            <small>Subject: ${task.subject_id}, Session: ${task.session_id}</small>
+                        </p>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                role="progressbar" style="width: 100%">
+                                Processing for ${processingTime} seconds
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (inference.queue_length > 0) {
+                html += `
+                    <h6 class="mt-3"><i class="fas fa-list me-2"></i>Pending Tasks: ${inference.queue_length}</h6>
+                    <ul class="list-group">
+                `;
+                
+                inference.pending_tasks.forEach(task => {
+                    const waitTime = Math.round(task.timing.time_in_queue);
+                    
+                    html += `
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-file-video me-2"></i>${task.video_path}
+                                </div>
+                                <span class="badge bg-warning">Waiting for ${waitTime} seconds</span>
+                            </div>
+                            <small class="text-muted">Subject: ${task.subject_id}, Session: ${task.session_id}</small>
+                        </li>
+                    `;
+                });
+                
+                html += `</ul>`;
+            } else if (inference.current_task) {
+                html += `<p class="mt-3">No pending tasks in queue.</p>`;
+            }
+            
+            if (!inference.current_task && inference.queue_length === 0) {
+                html += `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>No active inference tasks. System is idle.
+                    </div>
+                `;
+            }
+            
+            inferenceElement.innerHTML = html;
+        } else {
+            inferenceElement.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    No inference status information available.
+                </div>
+            `;
+        }
+    }
+</script>
+{% endblock %}

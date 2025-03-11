@@ -30,10 +30,10 @@ RUN useradd -u 1000 -m irods_user \
 # Set up application directory
 WORKDIR /app
 
-# Copy only the necessary files (not Inference)
-COPY --chown=irods_user:irods_user requirements.txt api_server.py rtsp_recorder.py inference_queue.py ./
+# Copy only requirements.txt first to leverage Docker cache
+COPY --chown=irods_user:irods_user requirements.txt .
 
-# Base requirements
+# Install base requirements 
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Python dependencies

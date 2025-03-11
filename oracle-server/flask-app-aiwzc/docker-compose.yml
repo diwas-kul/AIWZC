@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  proxy-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aiwzc-proxy
+    restart: always
+    network_mode: "host"  # Use host network to access WireGuard VPN
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # Mount SSL certificates
+      - ./server_proxy.py:/app/server_proxy.py:ro  # Mount server code
+      - ./templates:/app/templates:ro  # Mount template files
+      - ./static:/app/static:ro  # Mount static files (if any)
+    ports:
+      - "443:5000"  # Map container port 5000 to host port 443
+    environment:
+      - FLASK_APP=server_proxy.py
+      - FLASK_ENV=production

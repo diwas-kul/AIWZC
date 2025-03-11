@@ -33,6 +33,7 @@ build_image() {
     echo "Checking GPU availability for build..."
     if check_gpu; then
         echo "Building GPU-enabled Docker image..."
+        # Only build up to dependencies
         docker build -t $IMAGE_NAME -f Dockerfile.gpu .
     else
         echo "Building CPU-only Docker image..."
@@ -46,7 +47,6 @@ build_image() {
         exit 1
     fi
 }
-
 
 # Function to run container
 run_container() {
@@ -84,6 +84,9 @@ run_container() {
             -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
+            -v "$(pwd)/api_server.py:/app/api_server.py" \
+            -v "$(pwd)/rtsp_recorder.py:/app/rtsp_recorder.py" \
+            -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
             --restart unless-stopped \
             $IMAGE_NAME
     else
@@ -95,6 +98,9 @@ run_container() {
             -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
+            -v "$(pwd)/api_server.py:/app/api_server.py" \
+            -v "$(pwd)/rtsp_recorder.py:/app/rtsp_recorder.py" \
+            -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
             --restart unless-stopped \
             $IMAGE_NAME
     fi

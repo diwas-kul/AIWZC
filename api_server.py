@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import jwt
 import time
-from werkzeug.security import check_password_hash
+import socket
+import requests
 
 from inference_queue import InferenceQueueManager
 inference_queue = InferenceQueueManager("/app/Inference/pilot.py")
@@ -249,8 +250,8 @@ def start_recording_session():
         subject_id = data.get('subject_id', 'subject3')
         session_id = data.get('session_id', '0')
         
-        if not rtsp_url.startswith('rtsp://'):
-            rtsp_url = f"rtsp://{rtsp_url}"
+        # if not rtsp_url.startswith('rtsp://'):
+            # rtsp_url = f"rtsp://{rtsp_url}"
             
         # Initialize recording manager
         recording_manager = RecordingManager(rtsp_url, subject_id=subject_id, session_id=session_id)
@@ -351,8 +352,48 @@ def get_inference_status():
     })
 
 
+# Add at top of file with other imports
+import socket
+import requests
+
+# Add these functions near the start of the file
+def get_vpn_ip():
+    """Get the VPN IP address of this machine."""
+    try:
+        # Try to get the VPN IP by connecting to the VPN server
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.8.0.1", 51820))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        logger.warning("Could not determine VPN IP address")
+        return None
+
+def check_vpn_connection():
+    """Check if the VPN connection is active."""
+    try:
+        # Try to ping the server over VPN
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(1)
+        s.connect(("10.8.0.1", 51820))
+        s.close()
+        return True
+    except:
+        return False
+
+# Add this near the end of the file, before app.run()
 if __name__ == '__main__':
     # Make sure the recordings directory exists
     Path("/recordings").mkdir(exist_ok=True)
+    
+    # Check VPN connection
+    vpn_connected = check_vpn_connection()
+    vpn_ip = get_vpn_ip()
+    
+    logger.info(f"VPN Connection Status: {'Connected' if vpn_connected else 'Disconnected'}")
+    if vpn_connected and vpn_ip:
+        logger.info(f"VPN IP Address: {vpn_ip}")
+    
     # WARNING: In production, use proper SSL certificates
     app.run(host='0.0.0.0', port=5000, ssl_context='adhoc')
