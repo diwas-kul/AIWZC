@@ -94,7 +94,7 @@ check_status() {
         echo -e "${GREEN}Proxy server is running${NC}"
         
         # Check if laptop is reachable using bash
-        LAPTOP_IP="10.8.0.2"
+        LAPTOP_IP="10.8.0.5"
         echo "Testing connection to laptop server..."
         
         # Use bash's built-in /dev/tcp for TCP connection test (instead of ping)

@@ -116,27 +116,88 @@ class RecordingManager:
 
         try:
             if self.process:
-                # Calculate remaining duration
+                # Calculate elapsed time
                 elapsed_time = time.time() - self._recording_start_time
-                remaining_duration = max(0, self.duration - elapsed_time)
-                
                 logger.info(f"Stopping recording after {elapsed_time:.2f} seconds")
                 
-                # Let the process finish naturally if close to completion
-                if remaining_duration < 10:  # If less than 10 seconds remaining
-                    self.process.wait()
-                else:
-                    # Send terminate signal and wait for completion
-                    self.process.terminate()
+                # Send terminate signal and wait for completion
+                self.process.terminate()
+                try:
+                    # Wait with timeout to avoid hanging
+                    self.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Process termination timed out, forcing kill")
+                    self.process.kill()
                     self.process.wait()
                 
-                # Wait for upload to complete
-                if self._upload_thread:
-                    self._upload_thread.join(timeout=app.config['UPLOAD_TIMEOUT'])
+                # At this point, the recording should be saved
+                # Now we need to manually trigger the upload since the normal completion thread
+                # might not run properly due to the early termination
+                
+                try:
+                    latest_recording = max(
+                        self.output_dir.glob("recording_*.mp4"),
+                        key=lambda p: p.stat().st_mtime,
+                        default=None
+                    )
                     
-                return True, "Recording stopped and saved successfully"
+                    if latest_recording is None:
+                        logger.error("No recording file found after stopping")
+                        return False, "Recording stopped but no file was found"
+                    
+                    # Check if file is valid (not empty and properly finalized)
+                    if latest_recording.stat().st_size == 0:
+                        logger.error("Recording file is empty")
+                        return False, "Recording stopped but file is empty"
+                    
+                    # Wait a moment to make sure the file is properly closed
+                    time.sleep(1)
+                    
+                    # Upload to ManGO
+                    logger.info(f"Uploading stopped recording {latest_recording} to ManGO at {self.irods_path}")
+                    upload_cmd = ["iput", str(latest_recording), self.irods_path]
+                    
+                    upload_process = subprocess.run(
+                        upload_cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=app.config['UPLOAD_TIMEOUT']
+                    )
+                    
+                    if upload_process.returncode == 0:
+                        logger.info("Upload of stopped recording successful")
+
+                        # Queue inference task
+                        self.current_task_id = inference_queue.add_task(
+                            str(latest_recording),
+                            self.subject_id,
+                            self.session_id
+                        )
+                        logger.info(f"Queued inference task with ID: {self.current_task_id} for stopped recording")
+                        
+                        # Reset recording state
+                        self.is_recording = False
+                        self.process = None
+                        self._recording_start_time = None
+                        
+                        return True, "Recording stopped, saved, and uploaded successfully"
+                    else:
+                        error_msg = f"Upload to ManGO failed: {upload_process.stderr}"
+                        logger.error(error_msg)
+                        return False, error_msg
+                        
+                except Exception as e:
+                    error_msg = f"Error processing stopped recording: {str(e)}"
+                    logger.error(error_msg)
+                    return False, error_msg
+                    
+            return False, "No active recording process to stop"
         except Exception as e:
             logger.error(f"Error stopping recording: {str(e)}")
+            # Make sure to reset the recording state even if there's an error
+            self.is_recording = False
+            self.process = None
+            self._recording_start_time = None
             return False, str(e)
 
     def _handle_recording_completion(self):
@@ -145,6 +206,11 @@ class RecordingManager:
             # Wait for recording to complete
             self.process.wait()
             
+            # Check if we've already processed this recording (could happen if stop_recording was called)
+            if not self.is_recording:
+                logger.info("Recording already processed, skipping duplicate processing")
+                return
+                
             if self.process.returncode == 0:
                 try:
                     latest_recording = max(

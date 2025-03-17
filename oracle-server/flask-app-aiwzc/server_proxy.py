@@ -13,10 +13,15 @@ app = Flask(__name__)
 # Using the same secret key as your laptop server for JWT validation
 app.config['SECRET_KEY'] = 'AI@WZCProject'
 app.config['JWT_EXPIRATION_HOURS'] = 168  # 1 week expiration
-app.config['LAPTOP_API_URL'] = 'http://10.8.0.2:5000'  # Your laptop's VPN IP and port
+app.config['LAPTOP_IP']='10.8.0.5'  # Your laptop's VPN IP
+app.config['LAPTOP_DEFAULT_PORT'] = 5000  # Default port for laptop server
+app.config['LAPTOP_URL'] = f'http://{app.config["LAPTOP_IP"]}'  # Your laptop's VPN IP and port
+app.config['LAPTOP_API_URL'] = app.config['LAPTOP_URL'] + f":{app.config['LAPTOP_DEFAULT_PORT']}"
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)  # Session expires after 8 hours
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session expires after 7 days
+
+LAPTOP_IP = app.config['LAPTOP_IP']
 
 # Configure logging
 logging.basicConfig(
@@ -63,7 +68,7 @@ def get_vpn_peers():
         peers = [
             {
                 'name': 'Laptop',
-                'allowed_ips': '10.8.0.2/32',
+                'allowed_ips': f'{LAPTOP_IP}/32',
                 'status': 'unknown',
                 'latest_handshake': 'Unknown',
                 'received': 'Unknown',
@@ -84,7 +89,7 @@ def get_vpn_peers():
         
         for peer in peers:
             ip = peer['allowed_ips'].split('/')[0]
-            port = 5000 if ip == '10.8.0.2' else 8080  # Default ports
+            port = 5000 if ip == LAPTOP_IP else 8080  # Default ports
             
             try:
                 # Use socket with a very short timeout to check if peer is reachable
@@ -111,7 +116,7 @@ def get_vpn_peers():
         return [
             {
                 'name': 'Laptop',
-                'allowed_ips': '10.8.0.2/32',
+                'allowed_ips': f'{LAPTOP_IP}/32',
                 'status': 'unknown'
             },
             {
@@ -124,7 +129,7 @@ def get_vpn_peers():
 
 def check_laptop_status():
     """Check if the laptop is online and reachable using pure Python networking."""
-    laptop_ip = "10.8.0.2"
+    laptop_ip = LAPTOP_IP
     
     # Use Python socket to check basic connectivity (similar to ping)
     try:
