@@ -1,6 +1,6 @@
 FROM python:3.8-slim
 
-# Install system dependencies
+# Install system dependencies and WireGuard
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -12,6 +12,12 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     ffmpeg \
     python3-opencv \
+    iputils-ping \
+    wireguard \
+    wireguard-tools \
+    iproute2 \
+    openresolv \
+    iptables \
     && rm -rf /var/lib/apt/lists/*
 
 # Install iCommands
@@ -26,6 +32,9 @@ RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - 
 RUN useradd -u 1000 -m irods_user \
     && mkdir -p /recordings \
     && chown -R irods_user:irods_user /recordings
+
+# Create WireGuard directory
+RUN mkdir -p /etc/wireguard && chmod 700 /etc/wireguard
 
 # Set up application directory
 WORKDIR /app
@@ -45,7 +54,8 @@ RUN pip install --no-cache-dir \
     scipy \
     imageio \
     opencv-python-headless \
-    matplotlib pandas smplx h5py easydict ipdb visdom
+    matplotlib pandas smplx h5py easydict ipdb visdom \
+    cryptography pyopenssl gunicorn
 
 # PyTorch (separate layer)
 RUN pip install --no-cache-dir \
@@ -54,11 +64,13 @@ RUN pip install --no-cache-dir \
 # Create mount point for Inference
 RUN mkdir -p /app/Inference && chown -R irods_user:irods_user /app
 
-# Switch to non-root user
-USER irods_user
+# Copy the entrypoint script and make it executable
+COPY --chown=root:root docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Expose the Flask port
 EXPOSE 5000
 
-# Start the API server using gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "300", "api_server:app"]
+# Use root to start the container (required for WireGuard)
+USER root
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

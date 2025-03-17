@@ -80,13 +80,19 @@ run_container() {
             $DOCKER_HOST_FLAG \
             --gpus all \
             --name $CONTAINER_NAME \
+            --cap-add=NET_ADMIN \
+            --cap-add=SYS_MODULE \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
+            --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
             -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
             -v "$(pwd)/api_server.py:/app/api_server.py" \
             -v "$(pwd)/rtsp_recorder.py:/app/rtsp_recorder.py" \
             -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
+            -v "$(pwd)/docker-entrypoint.sh:/app/docker-entrypoint.sh" \
+            -v "$(pwd)/config-wg0.conf:/etc/wireguard/wg0.conf" \
+            -v "$(pwd)/private.key:/etc/wireguard/private.key" \
             --restart unless-stopped \
             $IMAGE_NAME
     else
@@ -94,13 +100,19 @@ run_container() {
         docker run -d \
             $DOCKER_HOST_FLAG \
             --name $CONTAINER_NAME \
+            --cap-add=NET_ADMIN \
+            --cap-add=SYS_MODULE \
             -p ${HOST_PORT}:${CONTAINER_PORT} \
+            --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
             -v $HOME/.irods:/home/irods_user/.irods \
             -v "$RECORDINGS_DIR":/recordings \
             -v "$INFERENCE_DIR":/app/Inference \
             -v "$(pwd)/api_server.py:/app/api_server.py" \
             -v "$(pwd)/rtsp_recorder.py:/app/rtsp_recorder.py" \
             -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
+            -v "$(pwd)/docker-entrypoint.sh:/app/docker-entrypoint.sh" \
+            -v "$(pwd)/config-wg0.conf:/etc/wireguard/wg0.conf" \
+            -v "$(pwd)/private.key:/etc/wireguard/private.key" \
             --restart unless-stopped \
             $IMAGE_NAME
     fi
