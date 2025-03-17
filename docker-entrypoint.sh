@@ -81,9 +81,6 @@ cd /app
 # Use the same gunicorn configuration as in the original Dockerfile
 su -c "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 300 api_server:app" irods_user &
 
-# Sleep to allow API server to initialize
-sleep 2
-
 # Keep container running
 echo "Container setup complete, services running."
 exec tail -f /dev/null

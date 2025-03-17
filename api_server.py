@@ -352,10 +352,6 @@ def get_inference_status():
     })
 
 
-# Add at top of file with other imports
-import socket
-import requests
-
 # Add these functions near the start of the file
 def get_vpn_ip():
     """Get the VPN IP address of this machine."""

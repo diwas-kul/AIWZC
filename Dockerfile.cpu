@@ -73,4 +73,7 @@ EXPOSE 5000
 
 # Use root to start the container (required for WireGuard)
 USER root
+
+# Start the API server using gunicorn, moved to docker-entrypoint.sh
+# CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "300", "api_server:app"]
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

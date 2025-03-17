@@ -8,13 +8,14 @@ CONTAINER_PORT=5000
 
 # Function to display usage
 show_usage() {
-    echo "Usage: $0 [build|run|both|stop|logs|demo]"
+    echo "Usage: $0 [build|run|both|stop|logs|demo|clean]"
     echo "  build    - Build the Docker image"
     echo "  run      - Run the container"
     echo "  both     - Build and run"
     echo "  stop     - Stop and remove the container"
     echo "  logs     - Show container logs"
     echo "  demo     - Run Inference/pilot.py"
+    echo "  clean    - Remove Docker image completely and rebuild from scratch"
 }
 
 # Check GPU availability
@@ -42,6 +43,40 @@ build_image() {
     
     if [ $? -eq 0 ]; then
         echo "Image built successfully"
+    else
+        echo "Error building image"
+        exit 1
+    fi
+}
+
+# Function to clean build Docker image
+clean_build() {
+    echo "Removing existing container if present..."
+    if docker ps -a | grep -q $CONTAINER_NAME; then
+        echo "Removing existing container..."
+        docker rm -f $CONTAINER_NAME
+    fi
+    
+    echo "Removing existing image if present..."
+    if docker images | grep -q $IMAGE_NAME; then
+        echo "Removing existing image..."
+        docker rmi -f $IMAGE_NAME
+    fi
+    
+    echo "Pruning Docker build cache..."
+    docker builder prune -f
+    
+    echo "Checking GPU availability for clean build..."
+    if check_gpu; then
+        echo "Building GPU-enabled Docker image from scratch..."
+        docker build --no-cache -t $IMAGE_NAME -f Dockerfile.gpu .
+    else
+        echo "Building CPU-only Docker image from scratch..."
+        docker build --no-cache -t $IMAGE_NAME -f Dockerfile.cpu .
+    fi
+    
+    if [ $? -eq 0 ]; then
+        echo "Image built successfully from scratch"
     else
         echo "Error building image"
         exit 1
@@ -92,7 +127,6 @@ run_container() {
             -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
             -v "$(pwd)/docker-entrypoint.sh:/app/docker-entrypoint.sh" \
             -v "$(pwd)/config-wg0.conf:/etc/wireguard/wg0.conf" \
-            -v "$(pwd)/private.key:/etc/wireguard/private.key" \
             --restart unless-stopped \
             $IMAGE_NAME
     else
@@ -112,7 +146,6 @@ run_container() {
             -v "$(pwd)/inference_queue.py:/app/inference_queue.py" \
             -v "$(pwd)/docker-entrypoint.sh:/app/docker-entrypoint.sh" \
             -v "$(pwd)/config-wg0.conf:/etc/wireguard/wg0.conf" \
-            -v "$(pwd)/private.key:/etc/wireguard/private.key" \
             --restart unless-stopped \
             $IMAGE_NAME
     fi
@@ -160,6 +193,10 @@ case "$1" in
         ;;
     "both")
         build_image
+        run_container
+        ;;
+    "clean")
+        clean_build
         run_container
         ;;
     "stop")
