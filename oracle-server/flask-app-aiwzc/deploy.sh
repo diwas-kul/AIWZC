@@ -23,7 +23,7 @@ show_usage() {
 # Function to build Docker image
 build_container() {
     echo -e "${GREEN}Building AIWZC Proxy Server container...${NC}"
-    docker compose build
+    docker-compose build
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Container built successfully${NC}"
     else
@@ -44,7 +44,7 @@ start_container() {
         echo -e "${YELLOW}Warning: WireGuard interface (wg0) not found. VPN functionality may not work.${NC}"
     fi
     
-    docker compose up -d
+    docker-compose up -d
     
     if [ $? -eq 0 ] && docker ps | grep -q aiwzc-proxy; then
         echo -e "${GREEN}Proxy server is running!${NC}"
@@ -58,7 +58,7 @@ start_container() {
 # Function to stop container
 stop_container() {
     echo -e "${GREEN}Stopping AIWZC Proxy Server...${NC}"
-    docker compose down
+    docker-compose down
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Container stopped successfully${NC}"
     else
