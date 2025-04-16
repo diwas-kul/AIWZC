@@ -86,7 +86,8 @@ class RecordingManager:
                 "/app/rtsp_recorder.py",
                 self.rtsp_url,
                 "-d", str(self.duration),
-                "-o", str(self.output_dir)
+                "-o", str(self.output_dir),
+                "--delay", "10"  # Add 10 second delay
             ]
             
             logger.info(f"Starting recording with command: {' '.join(cmd)}")
