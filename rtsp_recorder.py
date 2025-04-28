@@ -45,6 +45,74 @@ class RTSPRecorder:
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
+
+        # Initialize by probing the stream
+        # self._probe_stream() # Removed probing to prevent delay
+ 
+    def _probe_stream(self):
+        """Probe the stream to get information about it."""
+        try:
+            # Use ffprobe to get stream information
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height,r_frame_rate",
+                "-of", "csv=p=0",
+                self.rtsp_url
+            ]
+            
+            logger.info(f"Probing stream with command: {' '.join(cmd)}")
+            
+            for attempt in range(self.reconnect_attempts):
+                try:
+                    # Set a timeout to avoid hanging forever
+                    result = subprocess.run(
+                        cmd, 
+                        capture_output=True, 
+                        text=True, 
+                        timeout=30
+                    )
+                    
+                    if result.returncode == 0 and result.stdout.strip():
+                        # Parse output: width,height,frame_rate
+                        parts = result.stdout.strip().split(',')
+                        if len(parts) >= 3:
+                            self.frame_width = int(parts[0])
+                            self.frame_height = int(parts[1])
+                            
+                            # Parse frame rate which might be in the form "num/denom"
+                            fps_parts = parts[2].split('/')
+                            if len(fps_parts) == 2 and int(fps_parts[1]) > 0:
+                                self.fps = int(float(fps_parts[0]) / float(fps_parts[1]))
+                            elif len(fps_parts) == 1:
+                                self.fps = int(float(fps_parts[0]))
+                            
+                            # Validate and cap unrealistic values
+                            if self.fps <= 0 or self.fps > 60:
+                                self.fps = 24  # Default to 24 if unrealistic
+                            
+                            logger.info(f"Stream information: {self.frame_width}x{self.frame_height} @ {self.fps}fps")
+                            return
+                        
+                    logger.warning(f"Could not parse stream info on attempt {attempt+1}: {result.stdout}")
+                    
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Timeout while probing stream on attempt {attempt+1}")
+                    
+                except Exception as e:
+                    logger.error(f"Error probing stream on attempt {attempt+1}: {str(e)}")
+                
+                if attempt < self.reconnect_attempts - 1:
+                    logger.info(f"Retrying stream probe in 2 seconds...")
+                    time.sleep(2)
+            
+            # If we reached here, use default values
+            logger.warning("Could not determine stream properties, using defaults")
+                
+        except Exception as e:
+            logger.error(f"Failed to probe stream: {str(e)}")
+            logger.warning("Using default stream properties")
         
     def _handle_signal(self, signum, frame):
         """Handle termination signals gracefully."""
