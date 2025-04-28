@@ -7,6 +7,7 @@ import time
 import os
 from datetime import datetime
 import json
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,61 @@ class InferenceQueueManager:
             self.processing_thread.start()
             logger.info("Started inference processing thread")
 
+    def _upload_outcomes_to_api(self, subject_id, session_id):
+        """
+        Upload the inference outcomes JSON file to the external API.
+        
+        Args:
+            subject_id (str): Subject identifier
+            session_id (str): Session identifier
+            
+        Returns:
+            bool: True if upload was successful, False otherwise
+        """
+        try:
+            # Construct the path to the outcomes file
+            outcomes_file = f"/app/Inference/exercise_outcomes/{subject_id}_session{session_id}_outcomes.json"
+            
+            if not os.path.exists(outcomes_file):
+                logger.error(f"Outcomes file not found: {outcomes_file}")
+                return False
+                
+            # API configuration - update these when you have the full details
+            api_url = "https://staging.data-api.moveup.care/srp_dump_json_file"
+            api_key = "YOUR_API_KEY_HERE"  # Replace with your actual API key
+            
+            # Read the JSON file
+            with open(outcomes_file, 'r') as f:
+                json_data = json.load(f)
+            
+            # Prepare the request
+            headers = {
+                "Authorization": f"ApiKey {api_key}",
+                "Content-Type": "application/json"
+                # Add any other required headers when you get them
+            }
+            
+            # Send the request
+            logger.info(f"Uploading outcomes file to API: {outcomes_file}")
+            response = requests.post(
+                api_url,
+                json=json_data,  # Send as JSON body
+                headers=headers,
+                timeout=30  # 30-second timeout
+            )
+            
+            # Check if successful
+            if response.status_code in (200, 201):
+                logger.info(f"Successfully uploaded outcomes to API: {response.status_code}")
+                return True
+            else:
+                logger.error(f"API upload failed with status code {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error uploading outcomes to API: {str(e)}")
+            return False
+
     def _process_queue(self):
         """Process tasks from the queue sequentially."""
         while not self._stop_requested:
@@ -160,7 +216,13 @@ class InferenceQueueManager:
                     
                     log_entry = task.complete("completed")
                     logger.info(f"Completed inference for video: {task.video_path}")
-                    
+                
+                    api_upload_success = self._upload_outcomes_to_api(task.subject_id, task.session_id)
+                    if api_upload_success:
+                        logger.info(f"Successfully uploaded outcomes for subject {task.subject_id}, session {task.session_id}")
+                    else:
+                        logger.warning(f"Failed to upload outcomes for subject {task.subject_id}, session {task.session_id}")
+
                 except subprocess.CalledProcessError as e:
                     log_entry = task.complete("failed", str(e.stderr))
                     logger.error(f"Error running inference: {e.stderr}")
