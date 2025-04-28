@@ -132,8 +132,6 @@ class RecordingManager:
                     self.process.wait()
                 
                 # At this point, the recording should be saved
-                # Now we need to manually trigger the upload since the normal completion thread
-                # might not run properly due to the early termination
                 
                 try:
                     latest_recording = max(
@@ -154,38 +152,45 @@ class RecordingManager:
                     # Wait a moment to make sure the file is properly closed
                     time.sleep(1)
                     
-                    # Upload to ManGO
-                    logger.info(f"Uploading stopped recording {latest_recording} to ManGO at {self.irods_path}")
-                    upload_cmd = ["iput", str(latest_recording), self.irods_path]
-                    
-                    upload_process = subprocess.run(
-                        upload_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=app.config['UPLOAD_TIMEOUT']
+                    # Queue inference task immediately, regardless of ManGO upload
+                    self.current_task_id = inference_queue.add_task(
+                        str(latest_recording),
+                        self.subject_id,
+                        self.session_id
                     )
+                    logger.info(f"Queued inference task with ID: {self.current_task_id} for stopped recording")
                     
-                    if upload_process.returncode == 0:
-                        logger.info("Upload of stopped recording successful")
-
-                        # Queue inference task
-                        self.current_task_id = inference_queue.add_task(
-                            str(latest_recording),
-                            self.subject_id,
-                            self.session_id
+                    # Attempt ManGO upload
+                    try:
+                        # Upload to ManGO
+                        logger.info(f"Uploading stopped recording {latest_recording} to ManGO at {self.irods_path}")
+                        upload_cmd = ["iput", str(latest_recording), self.irods_path]
+                        
+                        upload_process = subprocess.run(
+                            upload_cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=app.config['UPLOAD_TIMEOUT']
                         )
-                        logger.info(f"Queued inference task with ID: {self.current_task_id} for stopped recording")
                         
-                        # Reset recording state
-                        self.is_recording = False
-                        self.process = None
-                        self._recording_start_time = None
+                        if upload_process.returncode == 0:
+                            logger.info("Upload of stopped recording successful")
+                        else:
+                            logger.error(f"Upload to ManGO failed: {upload_process.stderr}")
+                            # Note: Inference continues regardless of this error
+                    except subprocess.TimeoutExpired:
+                        logger.error("Upload to ManGO timeout exceeded")
+                        # Note: Inference continues regardless of this error
+                    except Exception as e:
+                        logger.error(f"Error during ManGO upload: {str(e)}")
+                        # Note: Inference continues regardless of this error
                         
-                        return True, "Recording stopped, saved, and uploaded successfully"
-                    else:
-                        error_msg = f"Upload to ManGO failed: {upload_process.stderr}"
-                        logger.error(error_msg)
-                        return False, error_msg
+                    # Reset recording state
+                    self.is_recording = False
+                    self.process = None
+                    self._recording_start_time = None
+                    
+                    return True, "Recording stopped, saved, and queued for inference"
                         
                 except Exception as e:
                     error_msg = f"Error processing stopped recording: {str(e)}"
@@ -224,35 +229,42 @@ class RecordingManager:
                         logger.error("No recording file found")
                         return
                     
-                    # Upload to ManGO
-                    logger.info(f"Uploading {latest_recording} to ManGO at {self.irods_path}")
-                    upload_cmd = ["iput", str(latest_recording), self.irods_path]
-                    
-                    upload_process = subprocess.run(
-                        upload_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=app.config['UPLOAD_TIMEOUT']
+                    # Queue inference task immediately, regardless of ManGO upload status
+                    self.current_task_id = inference_queue.add_task(
+                        str(latest_recording),
+                        self.subject_id,
+                        self.session_id
                     )
+                    logger.info(f"Queued inference task with ID: {self.current_task_id}")
                     
-                    if upload_process.returncode == 0:
-                        logger.info("Upload successful")
-
-
-                        # Queue inference task
-                        self.current_task_id = inference_queue.add_task(
-                            str(latest_recording),
-                            self.subject_id,
-                            self.session_id
+                    # Attempt ManGO upload as a separate process
+                    try:
+                        # Upload to ManGO
+                        logger.info(f"Uploading {latest_recording} to ManGO at {self.irods_path}")
+                        upload_cmd = ["iput", str(latest_recording), self.irods_path]
+                        
+                        upload_process = subprocess.run(
+                            upload_cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=app.config['UPLOAD_TIMEOUT']
                         )
-                        logger.info(f"Queued inference task with ID: {self.current_task_id}")
-
-                    else:
-                        logger.error(f"Upload to ManGO failed: {upload_process.stderr}")
-                except subprocess.TimeoutExpired:
-                    logger.error("Upload timeout exceeded")
+                        
+                        if upload_process.returncode == 0:
+                            logger.info("Upload to ManGO successful")
+                        else:
+                            logger.error(f"Upload to ManGO failed: {upload_process.stderr}")
+                            # Note: Inference continues regardless of this error
+                    except subprocess.TimeoutExpired:
+                        logger.error("Upload to ManGO timeout exceeded")
+                        # Note: Inference continues regardless of this error
+                    except Exception as e:
+                        logger.error(f"Error during ManGO upload: {str(e)}")
+                        # Note: Inference continues regardless of this error
+                    
                 except Exception as e:
-                    logger.error(f"Error during file upload: {str(e)}")
+                    logger.error(f"Error processing recording: {str(e)}")
+                    
             else:
                 logger.error("Recording process failed")
                 
