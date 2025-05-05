@@ -146,7 +146,8 @@ class InferenceQueueManager:
         try:
             # Construct the path to the outcomes file
             outcomes_file = f"/app/Inference/exercise_outcomes/{subject_id}_session{session_id}_outcomes.json"
-            
+            outcomes_filename = os.path.basename(outcomes_file) # Get base filename for the 'files' tuple
+
             if not os.path.exists(outcomes_file):
                 logger.error(f"Outcomes file not found: {outcomes_file}")
                 return False
@@ -155,25 +156,24 @@ class InferenceQueueManager:
             api_url = "https://staging.data-api.moveup.care/srp_dump_json_file"
             api_key = "YOUR_API_KEY_HERE"  # Replace with your actual API key
             
-            # Read the JSON file
-            with open(outcomes_file, 'r') as f:
-                json_data = json.load(f)
-            
             # Prepare the request
             headers = {
-                "Authorization": f"ApiKey {api_key}",
-                "Content-Type": "application/json"
-                # Add any other required headers when you get them
+                "api-key": api_key
             }
             
             # Send the request
             logger.info(f"Uploading outcomes file to API: {outcomes_file}")
-            response = requests.post(
-                api_url,
-                json=json_data,  # Send as JSON body
-                headers=headers,
-                timeout=30  # 30-second timeout
-            )
+            # Open file in binary mode ('rb') and prepare 'files' dictionary
+            with open(outcomes_file, 'rb') as file_obj:
+                files = {'file': (outcomes_filename, file_obj, 'application/json')}
+
+                # Send the request using the 'files' parameter (changed from 'json')
+                response = requests.post(
+                    api_url,
+                    files=files,     # Send as multipart/form-data file
+                    headers=headers,
+                    timeout=30       # 30-second timeout
+                )
             
             # Check if successful
             if response.status_code in (200, 201):

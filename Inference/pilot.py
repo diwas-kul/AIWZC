@@ -19,7 +19,7 @@ from utils.tools import *
 from utils.learning import *
 from utils import ActionNet
 from collections import Counter
-from scipy.stats import mode
+from scipy.stats import mode, zscore
 from utils.utils_data import flip_data
 from utils.dataset_wild import WildDetDataset
 from utils.vismo import render_and_save
@@ -268,7 +268,7 @@ def load_state_dict_cpu_fix(model, state_dict):
     model.load_state_dict(new_state_dict, strict=True)
     return model
 
-def inference(data, args, task):
+def inference(data, args, task, out_path, subject_id, session_id):
     checkpoint = './models'
     model_backbone = load_backbone(args)
     if task == "classification":
@@ -332,6 +332,9 @@ def inference(data, args, task):
         print(all_predictions)
         print("all_predictions")
         model_output = np.vstack(all_predictions)  # Flatten along batch axis
+
+    np.save(f"{out_path}/subject{subject_id}_session{session_id}.npy", model_output)
+
     return model_output
 
 def get_exercise_outcomes(class_labels, joint_data, subject_id, session_id, output_folder):
@@ -357,15 +360,45 @@ def get_exercise_outcomes(class_labels, joint_data, subject_id, session_id, outp
     rep_count = {k: int(v) for k, v in rep_count.items()}
     motion_variability = {k: [float(val) for val in v] for k, v in motion_variability.items()}
 
+     # Extract irregular mad values and add to json file if wanted: -------------------------
+    risk_summary = {}
+    for exercise_label, mad_values in motion_variability.items():
+        if len(mad_values) > 1:
+            z_scores = zscore(mad_values)
+        else:
+            z_scores = np.zeros_like(mad_values)
+
+        counts = {"high": 0, "moderate": 0, "low": 0}
+        for z in z_scores:
+            if abs(z) > 3:
+                counts["high"] += 1
+            elif abs(z) > 2:
+                counts["moderate"] += 1
+
+        summary = []
+        if counts["high"] > 0:
+            summary.append({"risk": "high", "count": counts["high"]})
+        if counts["moderate"] > 0:
+            summary.append({"risk": "moderate", "count": counts["moderate"]})
+        if summary:
+            risk_summary[str(exercise_label)] = summary
+
     # Create a dictionary to store all outcomes
     outcomes = {
         "subject_id": subject_id,
         "session_id": session_id,
-        "exercise_outcomes": {
-            "exercise_duration": exercise_duration,
-            "repetition_count": rep_count,
-            "motion_variability": motion_variability
-        }
+        "exercise_labels": {
+            "0": "random movement",
+            "1": "stand-to-sit",
+            "2": "sit-to-stand",
+            "5": "moving a weight from left to right",
+            "6": "moving a weight from right to left"
+        },
+        "exercise_duration_mins": exercise_duration,
+        "repetition_count": rep_count,
+        "exercise_irregular_repetitions": risk_summary,
+        "exercise_variability_degrees": motion_variability
+        
     }
 
     output_file = os.path.join(output_folder, f"{subject_id}_session{session_id}_outcomes.json")
@@ -411,8 +444,10 @@ if __name__ == "__main__":
         data_reg = create_dataloader(['patient3'], 243, 243, test=True, task="regression", batch_size=2, shuffle=False)
         
         # Inference
-        class_labels = inference(data_class, args_class, 'classification')
-        joint_data = inference(data_reg, args_reg, 'regression')
+        out_path = './motionbert/results_inference/'
+
+        class_labels = inference(data_class, args_class, 'classification', out_path, subject_id, session_id)
+        joint_data = inference(data_reg, args_reg, 'regression', out_path, subject_id, session_id)
     except Exception as e:
         print(f"Error during inference: {e}")
         sys.exit(1)
